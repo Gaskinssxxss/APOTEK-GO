@@ -1,0 +1,147 @@
+// File: /home/kali/APOTEKKK/apotek-management/models/db.go
+package models
+
+import (
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+)
+
+var DB *gorm.DB
+
+func InitDB() {
+	var err error
+	DB, err = gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+	if err != nil {
+		panic("failed to connect to the database")
+	}
+}
+
+
+// File: /home/kali/APOTEKKK/apotek-management/models/obat.go
+package models
+
+import "time"
+
+type Obat struct {
+	ID         uint      `json:"id_obat" gorm:"primaryKey;column:id_obat"`
+	KodeObat   string    `json:"kode_obat" gorm:"type:varchar(100);not null"`
+	NamaObat   string    `json:"nama_obat" gorm:"type:varchar(100);not null"`
+	Deskripsi  string    `json:"deskripsi" gorm:"type:text"`
+	Harga      uint64    `json:"harga_obat" gorm:"type:bigint unsigned;not null"`
+	TipeObatID uint      `json:"id_tipe_obat" gorm:"not null"`
+	TipeObat   TipeObat  `json:"tipe_obat" gorm:"foreignKey:TipeObatID;references:ID"`
+	Tags       []TagObat `json:"tags" gorm:"many2many:obat_tags;joinForeignKey:ObatID;joinReferences:TagObatID"`
+	Stok       Stok      `json:"stok" gorm:"foreignKey:ObatID"`
+	CreatedAt  time.Time `json:"created_at" gorm:"type:timestamp;default:CURRENT_TIMESTAMP"`
+	UpdatedAt  time.Time `json:"updated_at" gorm:"type:timestamp;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
+}
+
+type ObatTag struct {
+	ObatID    uint      `json:"obat_id" gorm:"primaryKey"`
+	TagObatID uint      `json:"tag_obat_id" gorm:"primaryKey"`
+	CreatedAt time.Time `json:"created_at" gorm:"type:timestamp;default:CURRENT_TIMESTAMP"`
+}
+
+
+// File: /home/kali/APOTEKKK/apotek-management/models/stok.go
+package models
+
+import "time"
+
+type Stok struct {
+	ID            uint   `json:"id" gorm:"primaryKey"`
+	Jumlah        int    `json:"jumlah" gorm:"not null"`
+	TipeTransaksi string `json:"tipe_transaksi" gorm:"type:enum('MASUK', 'KELUAR');not null"`
+	Keterangan    string `json:"keterangan" gorm:"type:text"`
+	ObatID        uint   `json:"obat_id" gorm:"unique;not null"`
+	// Obat          *Obat     `json:"obat" gorm:"foreignKey:ObatID;references:ID"`
+	CreatedAt time.Time `json:"created_at" gorm:"type:timestamp;default:CURRENT_TIMESTAMP"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"type:timestamp;default:CURRENT_TIMESTAMP;autoUpdateTime"`
+}
+
+
+// File: /home/kali/APOTEKKK/apotek-management/models/tag_obat.go
+package models
+
+import "time"
+
+type TagObat struct {
+	ID        uint      `json:"id_tag_obat" gorm:"primaryKey;column:id_tag_obat"`
+	NamaTag   string    `json:"nama_tag" gorm:"type:varchar(100);not null"`
+	CreatedAt time.Time `json:"created_at" gorm:"type:timestamp;default:CURRENT_TIMESTAMP"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"type:timestamp;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
+}
+
+func (TagObat) TableName() string {
+	return "tag_obat"
+}
+
+
+// File: /home/kali/APOTEKKK/apotek-management/models/tipe_obat.go
+// models/tipe_obat.go
+
+package models
+
+import "time"
+
+type TipeObat struct {
+	ID        uint      `json:"id_tipe_obat" gorm:"primaryKey;column:id_tipe_obat;type:bigint unsigned"`
+	NamaTipe  string    `json:"nama_tipe" gorm:"type:varchar(100);not null"`
+	KodeTipe  string    `json:"kode_tipe" gorm:"type:varchar(100);not null"`
+	CreatedAt time.Time `json:"created_at" gorm:"type:timestamp;default:CURRENT_TIMESTAMP"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"type:timestamp;default:CURRENT_TIMESTAMP;autoUpdateTime"`
+}
+
+func (TipeObat) TableName() string {
+	return "tipe_obats"
+}
+
+
+// File: /home/kali/APOTEKKK/apotek-management/models/transaksi.go
+package models
+
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
+
+type Transaksi struct {
+	ID            uint      `json:"id_transaksi" gorm:"primaryKey;column:id_transaksi"`
+	KodeTransaksi string    `json:"kode_transaksi" gorm:"type:varchar(20);unique;not null"`
+	Jumlah        int       `json:"jumlah" gorm:"type:int;not null"`
+	TotalHarga    int       `json:"total_harga" gorm:"type:int;not null"`
+	Status        string    `json:"status" gorm:"type:varchar(50);not null"`
+	ObatID        uint      `json:"id_obat" gorm:"not null"` // Foreign key untuk Obat
+	Obat          Obat      `json:"obat" gorm:"foreignKey:ObatID;references:ID"`
+	CreatedAt     time.Time `json:"created_at" gorm:"type:timestamp;default:CURRENT_TIMESTAMP"`
+}
+
+func (transaksi *Transaksi) BeforeCreate(tx *gorm.DB) (err error) {
+	var obat Obat
+	if err := tx.First(&obat, transaksi.ObatID).Error; err != nil {
+		return err
+	}
+	transaksi.TotalHarga = transaksi.Jumlah * int(obat.Harga)
+	return nil
+}
+
+
+// File: /home/kali/APOTEKKK/apotek-management/models/validator.go
+package models
+
+import (
+	"github.com/go-playground/validator/v10"
+)
+
+var validate *validator.Validate
+
+func init() {
+	validate = validator.New()
+}
+
+func ValidateStruct(s interface{}) error {
+	return validate.Struct(s)
+}
+
+
